@@ -1,0 +1,392 @@
+#include <stdio.h>
+#include <raylib.h>
+#include <math.h>
+#include <stdbool.h>
+#include <time.h>
+#include <stdlib.h>
+
+#define SCREEN_WIDTH 800
+#define SCREEN_HEIGHT 600
+
+#define PLATFORMS 30 //60 seems pretty seamless
+#define PLATFORM_SIZE 1
+
+Vector3 rotate_x(Vector3 p, double angle_degrees) {
+    double theta = angle_degrees * (M_PI / 180.0);
+    double cos_theta = cos(theta);
+    double sin_theta = sin(theta);
+
+    Vector3 result;
+    
+    result.x = p.x;
+    result.y = (cos_theta * p.y) - (sin_theta * p.z);
+    result.z = (sin_theta * p.y) + (cos_theta * p.z);
+
+    return result;
+}
+
+Vector3 move(Vector3 p, Vector3 delta) {
+    Vector3 result = { 0 };
+	result.x = p.x + delta.x;
+	result.y = p.y + delta.y;
+	result.z = p.z + delta.z;
+
+    return result;
+}
+
+typedef struct {} Vertice;
+
+typedef struct {
+	float len;
+	Vector3 pos;
+} Platform;
+
+impl Platform {
+	void init(){
+		Platform.len = 1.f;
+		Platform.pos = (Vector3){0.f, -1.f, 1.3f};
+	}
+	
+	void draw(){
+		Vector3 vertices[4];
+		vertices[0] = (Vector3){Platform.pos.x - 0.5f, Platform.pos.y, Platform.pos.z};
+		vertices[1] = (Vector3){Platform.pos.x + 0.5f, Platform.pos.y, Platform.pos.z};
+		vertices[2] = (Vector3){Platform.pos.x + 0.5f, Platform.pos.y, Platform.pos.z + Platform.len};
+		vertices[3] = (Vector3){Platform.pos.x - 0.5f, Platform.pos.y, Platform.pos.z + Platform.len};
+		
+		Vector2 points[4];
+		
+		for(int i = 0; i < 4; i++){
+			points[i] = (Vector2){ 
+				vertices[i].x / vertices[i].z, 
+				vertices[i].y / vertices[i].z 
+			};
+			
+			points[i] = (Vector2){ 
+				(points[i].x + 1) / 2 * SCREEN_WIDTH, 
+				(1 - (points[i].y + 1) / 2 ) * SCREEN_HEIGHT 
+			};
+		}
+		
+		for(int i = 0; i < 4; i++){
+			if(vertices[i].z <= 0.f){
+				break;
+			}
+			DrawLine(points[i].x, points[i].y, points[(i+1)%4].x, points[(i+1)%4].y, GREEN);
+		}
+
+		
+	}
+	
+	void move(Vector3 delta){
+		Platform.pos.x += delta.x;
+		Platform.pos.y += delta.y;
+		Platform.pos.z += delta.z;
+	}
+	
+	void set_pos(Vector3 pos){
+		Platform.pos.x = pos.x;
+		Platform.pos.y = pos.y;
+		Platform.pos.z = pos.z;
+	}
+}
+
+typedef struct {
+	int platform_count;
+	float delta_z;
+	float scroll_speed;
+	int first_platform;
+	Platform platforms[PLATFORMS];
+} Map;
+
+impl Map {
+	void init(){
+		Map.platform_count = PLATFORMS;
+		Map.delta_z = 1.f;
+		Map.scroll_speed = 4.5f;
+		for(int i = 0; i < Map.platform_count; i++){
+			Map.platforms[i].init();
+			Map.platforms[i].move( (Vector3){ (float)(rand()%3-1), 0.f, Map.delta_z*i} );
+		}
+		Map.platforms[0].pos.x = 0;
+		Map.platforms[1].pos.x = 0;
+		Map.platforms[2].pos.x = 0;
+		Map.first_platform = 0;
+	}
+	
+	void draw(){
+		for(int i = 0; i < Map.platform_count; i++){
+			Map.platforms[i].draw();
+		}
+	}
+	
+	void move(){
+		for(int i = 0; i < Map.platform_count; i++){
+			Map.platforms[i].move( (Vector3){ 0.f, 0.f, -Map.scroll_speed * GetFrameTime() } );
+			if(Map.platforms[i].pos.z <= 0.f){
+				Map.first_platform = (i-1)%(PLATFORMS+1);
+				Map.platforms[i].pos.x = (float)(rand()%3-1);
+				Map.platforms[i].move( (Vector3){ 0.f, 0.f, (float)Map.platform_count*Map.delta_z } );
+			}	
+		}
+	}
+	
+	void set_speed(float speed){
+		Map.scroll_speed = speed;
+	}
+	
+	Platform* get_platforms(){
+		return Map.platforms;
+	}
+}
+
+typedef struct {
+	Vector3 pos;
+	Vector3 vel;
+	float size;
+	float speed;
+	float rotation_x;
+	bool jumping;
+	bool gameover;
+	bool collides;
+} Player;
+
+impl Player {
+	void init(){
+		Player.pos = (Vector3){0.f, -1.f, 1.3f};
+		Player.vel = (Vector3){0.f, 0.f};
+		Player.size = 0.2f;
+		Player.speed = 3.f;
+		Player.rotation_x = 0.f;
+		Player.jumping = false;
+		Player.gameover = false;
+		Player.collides = true;
+		
+	}
+	
+	void draw(){
+		float cube_half_size = Player.size/2.f;
+		const int count = 8;
+		Vector3 vertices[count];	
+		
+		Vector3 offset_pos = Player.pos;
+		offset_pos.y += cube_half_size;
+		
+		vertices[0] = (Vector3){-cube_half_size, -cube_half_size, -cube_half_size};
+		vertices[1] = (Vector3){ cube_half_size, -cube_half_size, -cube_half_size};
+		vertices[2] = (Vector3){ cube_half_size, -cube_half_size,  cube_half_size};
+		vertices[3] = (Vector3){-cube_half_size, -cube_half_size,  cube_half_size};
+
+		vertices[4] = (Vector3){-cube_half_size, cube_half_size, -cube_half_size};
+		vertices[5] = (Vector3){ cube_half_size, cube_half_size, -cube_half_size};
+		vertices[6] = (Vector3){ cube_half_size, cube_half_size,  cube_half_size};
+		vertices[7] = (Vector3){-cube_half_size, cube_half_size,  cube_half_size};
+		
+		
+		
+		for(int i = 0; i < count; i++){
+			if(Player.jumping || Player.gameover){
+				Player.rotation_x += 2.f;
+			}else{
+				Player.rotation_x = 0.f;
+			}
+			vertices[i] = rotate_x(vertices[i], Player.rotation_x);
+			vertices[i] = move(vertices[i], offset_pos);
+		}
+		
+		Vector2 points[count];
+		
+		for(int i = 0; i < count; i++){
+			points[i] = (Vector2){ 
+				vertices[i].x / vertices[i].z, 
+				vertices[i].y / vertices[i].z 
+			};
+			
+			points[i] = (Vector2){ 
+				(points[i].x + 1) / 2 * SCREEN_WIDTH, 
+				(1 - (points[i].y + 1) / 2 ) * SCREEN_HEIGHT 
+			};
+		}
+		
+		DrawLineV(points[0], points[1], RED);
+		DrawLineV(points[1], points[2], RED);
+		DrawLineV(points[2], points[3], RED);
+		DrawLineV(points[3], points[0], RED);
+		
+		DrawLineV(points[0], points[4], RED);
+		DrawLineV(points[1], points[5], RED);
+		DrawLineV(points[2], points[6], RED);
+		DrawLineV(points[3], points[7], RED);
+		
+		DrawLineV(points[4], points[5], RED);
+		DrawLineV(points[5], points[6], RED);
+		DrawLineV(points[6], points[7], RED);
+		DrawLineV(points[7], points[4], RED);
+		
+	}
+	
+	Vector2 input(){
+		Vector2 input = { 0 };
+		if (IsKeyDown(KEY_A)){
+			input.x -= 1.f;
+		}
+		if (IsKeyDown(KEY_D)){
+			input.x += 1.f;
+		}
+		if (IsKeyDown(KEY_SPACE)){
+			input.y += 1.f;
+		}
+		if (IsKeyDown(KEY_G)){
+			Player.gameover = true;
+		}
+		return input;
+	}
+	
+	void collision(const Platform* platforms) {
+		Player.collides = false;
+
+		// A skin of 0.05 is almost as big as your player (0.15). 
+		// Let's use 0.02 so you have to actually be off the edge to fall.
+		float skin = 0.02f; 
+		float p_minX = Player.pos.x - (Player.size / 2.f) + skin;
+		float p_maxX = Player.pos.x + (Player.size / 2.f) - skin;
+		float p_minZ = Player.pos.z - (Player.size / 2.f) + skin;
+		float p_maxZ = Player.pos.z + (Player.size / 2.f) - skin;
+
+		for(int i = 0; i < PLATFORMS; i++) {
+			// MATCH THE DRAW LOGIC:
+			// X is centered on pos.x
+			float plat_minX = platforms[i].pos.x - 0.5f;
+			float plat_maxX = platforms[i].pos.x + 0.5f;
+			
+			// Z starts at pos.z and goes to pos.z + len (1.0f)
+			float plat_minZ = platforms[i].pos.z;
+			float plat_maxZ = platforms[i].pos.z + platforms[i].len;
+			
+			// Y Check: Checking if player is at the platform level
+			float plat_y = platforms[i].pos.y;
+			bool overlapY = (Player.pos.y >= plat_y - 0.1f) && (Player.pos.y <= plat_y + 0.1f);
+
+			bool overlapX = (p_maxX > plat_minX) && (p_minX < plat_maxX);
+			bool overlapZ = (p_maxZ > plat_minZ) && (p_minZ < plat_maxZ);
+
+			if (overlapX && overlapZ && overlapY) {
+				Player.collides = true;
+				return; 
+			}
+		}
+	}
+	
+	void update(){
+		float gravity = 15.f;
+		float dt = GetFrameTime();
+		Vector2 input = Player.input();
+		if(Player.jumping == true){
+			input.y = 0.f;
+		}
+		
+		if (Player.pos.y <= -2.0f && Player.collides == false) {
+			Player.gameover = true;
+		}
+
+		if(Player.gameover == false){
+			if (Player.collides == true) {
+				Player.vel.y += input.y * 2.5f;
+			}
+			Player.vel.x = input.x * Player.speed;
+			
+			if (Player.collides == true) {
+				if(Player.pos.y > -1.f){
+					Player.jumping = true;
+					Player.vel.y -= gravity * dt;
+				}
+				if(Player.pos.y < -1.f){
+					Player.jumping = false;
+					Player.vel.y = 0.f;
+					Player.pos.y = -1.f;
+				}
+			}else{
+				Player.vel.y -= gravity * dt;
+				Player.jumping = true;
+			}
+		}else{
+			Player.vel.y -= gravity * dt;
+		}
+		
+		Player.pos.x += Player.vel.x * dt;
+		Player.pos.y += Player.vel.y * dt;
+
+		if(Player.pos.x < -1.f){
+			Player.pos.x = -1.f;
+		}else if (Player.pos.x > 1.f){
+			Player.pos.x = 1.f;
+		}
+		
+	}
+}
+
+typedef struct {
+	Player player;
+	Map map;
+	int score;
+	bool gameover;
+} Game;
+
+impl Game{
+	void init(){
+		Game.gameover = false;
+		Game.score = 0;
+		Game.map.init();
+		Game.player.init();
+	}
+	
+	void draw(){
+		Game.map.draw();
+		Game.player.draw();
+		DrawText(TextFormat("Score: %d", Game.score), 10, 10, 20, RED);
+		if(Game.gameover == true){
+			DrawText("huj ci w dupe [R]", SCREEN_WIDTH/2, SCREEN_HEIGHT/2, 20, RED);
+		}
+	}
+	
+	void update(){
+		if(IsKeyPressed(KEY_R)){
+			Game.init();
+		}
+		
+		Game.gameover = Game.player.gameover;
+		if(Game.gameover == false){
+			Game.score += 10;
+		}
+		Game.map.move();
+		Game.player.collision(Game.map.get_platforms());
+		Game.player.update();
+
+	}
+}
+
+int main(){
+	srand(time(NULL));
+	
+	InitWindow(SCREEN_WIDTH, SCREEN_HEIGHT, "plat3d");
+	
+	SetTargetFPS(60);
+	
+	Game game;
+	game.init();
+	
+	while(!WindowShouldClose()){
+		
+		BeginDrawing();
+		
+			ClearBackground(BLACK);
+			
+			game.update();
+			game.draw();
+
+		EndDrawing();
+		
+	}
+	
+	return 0;
+}
