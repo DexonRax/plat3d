@@ -249,7 +249,7 @@ impl Player {
 		if (IsKeyDown(KEY_D)){
 			input.x += 1.f;
 		}
-		if (IsKeyDown(KEY_SPACE)){
+		if (IsKeyPressed(KEY_SPACE)){
 			input.y += 1.f;
 		}
 		if (IsKeyDown(KEY_G)){
@@ -307,7 +307,7 @@ impl Player {
 
 		if(Player.gameover == false){
 			if (Player.collides == true) {
-				Player.vel.y += input.y * 2.5f;
+				Player.vel.y += input.y * 5.f;
 			}
 			Player.vel.x = input.x * Player.speed;
 			
