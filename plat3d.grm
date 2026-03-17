@@ -285,7 +285,7 @@ impl Player {
 			
 			// Y Check: Checking if player is at the platform level
 			float plat_y = platforms[i].pos.y;
-			bool overlapY = (Player.pos.y >= plat_y - 0.4f) && (Player.pos.y <= plat_y + 0.1f);
+			bool overlapY = (Player.pos.y >= plat_y - 0.15f) && (Player.pos.y <= plat_y + 0.1f);
 
 			bool overlapX = (p_maxX > plat_minX) && (p_minX < plat_maxX);
 			bool overlapZ = (p_maxZ > plat_minZ) && (p_minZ < plat_maxZ);
