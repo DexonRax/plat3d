@@ -8,7 +8,7 @@
 #define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT 600
 
-#define PLATFORMS 30 //60 seems pretty seamless
+#define PLATFORMS 10 //60 seems pretty seamless
 #define PLATFORM_SIZE 1
 
 Vector3 rotate_x(Vector3 p, double angle_degrees) {
@@ -34,19 +34,23 @@ Vector3 move(Vector3 p, Vector3 delta) {
     return result;
 }
 
+float clamp(float value, float min, float max) {
+	if (value < min) return min;
+	if (value > max) return max;
+	return value;
+}
+
 typedef struct {} Vertice;
 
 typedef struct {
 	float len;
 	Vector3 pos;
-	int color_counter;
 } Platform;
 
 impl Platform {
 	void init(){
 		Platform.len = 1.f;
 		Platform.pos = (Vector3){0.f, -1.f, 1.3f};
-		Platform.color_counter = 0;
 	}
 	
 	void draw(){
@@ -70,20 +74,23 @@ impl Platform {
 			};
 		}
 		
-		Color colors[3] = { LIME, GREEN, LIME };
-
-		Platform.color_counter++;
 		
+		//Color color = {5, 50, 10, 255};
+		Color color = {25, 25, 25, 255-clamp(Platform.pos.z, 0.1f, 10.0f)*25.5f};
+
+		DrawTriangle(points[0], points[1], points[2], color);
+		DrawTriangle(points[0], points[2], points[3], color);
+
+		Color semi_white = {160, 160, 160, 255-clamp(Platform.pos.z, 0.1f, 10.0f)*25.5f};
+		//Color edge_colors[3] = { LIME, GREEN, LIME };
+		Color edge_colors[3] = { semi_white, semi_white, semi_white};
+
 		for(int i = 0; i < 4; i++){
 			if(vertices[i].z <= 0.f){
 				break;
 			}
-			DrawLine(points[i].x, points[i].y, points[(i+1)%4].x, points[(i+1)%4].y, colors[(int)(Platform.pos.x+1)]);
-			Platform.color_counter++;
-
+			DrawLine(points[i].x, points[i].y, points[(i+1)%4].x, points[(i+1)%4].y, edge_colors[(int)(Platform.pos.x+1)]);
 		}
-
-		
 	}
 	
 	void move(Vector3 delta){
@@ -165,7 +172,7 @@ impl Player {
 	void init(){
 		Player.pos = (Vector3){0.f, -1.f, 1.3f};
 		Player.vel = (Vector3){0.f, 0.f};
-		Player.size = 0.2f;
+		Player.size = 0.16f;
 		Player.speed = 3.f;
 		Player.rotation_x = 0.f;
 		Player.fall_speed = 1.f; //unused for now but was used to scale gravity when the player speeds up
@@ -193,14 +200,15 @@ impl Player {
 		vertices[6] = (Vector3){ cube_half_size, cube_half_size,  cube_half_size};
 		vertices[7] = (Vector3){-cube_half_size, cube_half_size,  cube_half_size};
 		
+		if(Player.diving){
+			Player.rotation_x += 32.f;
+		}else if(Player.jumping){
+			Player.rotation_x += 16.f;
+		}else{
+			Player.rotation_x = 0.f;
+		}
+
 		for(int i = 0; i < count; i++){
-			if(Player.diving){
-				Player.rotation_x += 4.f;
-			}else if(Player.jumping){
-				Player.rotation_x += 2.f;
-			}else{
-				Player.rotation_x = 0.f;
-			}
 			vertices[i] = rotate_x(vertices[i], Player.rotation_x);
 			vertices[i] = move(vertices[i], offset_pos);
 		}
@@ -219,22 +227,61 @@ impl Player {
 			};
 		}
 		
-		Color color = MAROON;
+		Color color = {255, 0, 0, 255};
+		//Color edge_color = RED;
 		
-		DrawLineV(points[0], points[1], color);
-		DrawLineV(points[1], points[2], color);
-		DrawLineV(points[2], points[3], color);
-		DrawLineV(points[3], points[0], color);
+		DrawTriangle(points[0], points[1], points[2], color);
+		DrawTriangle(points[2], points[1], points[0], color);
+		DrawTriangle(points[2], points[3], points[0], color);
+		DrawTriangle(points[0], points[3], points[2], color);
+
+		// Top face
+		DrawTriangle(points[4], points[5], points[6], color);
+		DrawTriangle(points[6], points[5], points[4], color);
+		DrawTriangle(points[6], points[7], points[4], color);
+		DrawTriangle(points[4], points[7], points[6], color);
+
+		// Front face
+		DrawTriangle(points[0], points[1], points[5], color);
+		DrawTriangle(points[5], points[1], points[0], color);
+		DrawTriangle(points[5], points[4], points[0], color);
+		DrawTriangle(points[0], points[4], points[5], color);
+
+		// Left face
+		DrawTriangle(points[0], points[3], points[7], color);
+		DrawTriangle(points[7], points[3], points[0], color);
+		DrawTriangle(points[7], points[4], points[0], color);
+		DrawTriangle(points[0], points[4], points[7], color);
+
+		// Back face
+		DrawTriangle(points[3], points[2], points[6], color);
+		DrawTriangle(points[6], points[2], points[3], color);
+		DrawTriangle(points[6], points[7], points[3], color);
+		DrawTriangle(points[3], points[7], points[6], color);
+
+		// Right face
+		DrawTriangle(points[1], points[5], points[6], color);
+		DrawTriangle(points[6], points[5], points[1], color);
+		DrawTriangle(points[6], points[2], points[1], color);
+		DrawTriangle(points[1], points[2], points[6], color);
+
+		/*
+		DrawLineV(points[0], points[1], edge_color);
+		DrawLineV(points[1], points[2], edge_color);
+		DrawLineV(points[2], points[3], edge_color);
+		DrawLineV(points[3], points[0], edge_color);
 		
-		DrawLineV(points[0], points[4], color);
-		DrawLineV(points[1], points[5], color);
-		DrawLineV(points[2], points[6], color);
-		DrawLineV(points[3], points[7], color);
+		DrawLineV(points[0], points[4], edge_color);
+		DrawLineV(points[1], points[5], edge_color);
+		DrawLineV(points[2], points[6], edge_color);
+		DrawLineV(points[3], points[7], edge_color);
 		
-		DrawLineV(points[4], points[5], color);
-		DrawLineV(points[5], points[6], color);
-		DrawLineV(points[6], points[7], color);
-		DrawLineV(points[7], points[4], color);
+		DrawLineV(points[4], points[5], edge_color);
+		DrawLineV(points[5], points[6], edge_color);
+		DrawLineV(points[6], points[7], edge_color);
+		DrawLineV(points[7], points[4], edge_color);
+
+		*/
 		
 	}
 
