@@ -39,12 +39,14 @@ typedef struct {} Vertice;
 typedef struct {
 	float len;
 	Vector3 pos;
+	int color_counter;
 } Platform;
 
 impl Platform {
 	void init(){
 		Platform.len = 1.f;
 		Platform.pos = (Vector3){0.f, -1.f, 1.3f};
+		Platform.color_counter = 0;
 	}
 	
 	void draw(){
@@ -68,11 +70,17 @@ impl Platform {
 			};
 		}
 		
+		Color colors[3] = { LIME, GREEN, LIME };
+
+		Platform.color_counter++;
+		
 		for(int i = 0; i < 4; i++){
 			if(vertices[i].z <= 0.f){
 				break;
 			}
-			DrawLine(points[i].x, points[i].y, points[(i+1)%4].x, points[(i+1)%4].y, GREEN);
+			DrawLine(points[i].x, points[i].y, points[(i+1)%4].x, points[(i+1)%4].y, colors[(int)(Platform.pos.x+1)]);
+			Platform.color_counter++;
+
 		}
 
 		
@@ -103,7 +111,7 @@ impl Map {
 	void init(){
 		Map.platform_count = PLATFORMS;
 		Map.delta_z = 1.f;
-		Map.scroll_speed = 4.5f;
+		Map.scroll_speed = 3.f;
 		for(int i = 0; i < Map.platform_count; i++){
 			Map.platforms[i].init();
 			Map.platforms[i].move( (Vector3){ (float)(rand()%3-1), 0.f, Map.delta_z*i} );
@@ -146,6 +154,7 @@ typedef struct {
 	float size;
 	float speed;
 	float rotation_x;
+	float fall_speed;
 	bool jumping;
 	bool gameover;
 	bool collides;
@@ -158,6 +167,7 @@ impl Player {
 		Player.size = 0.2f;
 		Player.speed = 3.f;
 		Player.rotation_x = 0.f;
+		Player.fall_speed = 1.f; //unused for now but was used to scale gravity when the player speeds up
 		Player.jumping = false;
 		Player.gameover = false;
 		Player.collides = true;
@@ -208,21 +218,27 @@ impl Player {
 			};
 		}
 		
-		DrawLineV(points[0], points[1], RED);
-		DrawLineV(points[1], points[2], RED);
-		DrawLineV(points[2], points[3], RED);
-		DrawLineV(points[3], points[0], RED);
+		Color color = MAROON;
 		
-		DrawLineV(points[0], points[4], RED);
-		DrawLineV(points[1], points[5], RED);
-		DrawLineV(points[2], points[6], RED);
-		DrawLineV(points[3], points[7], RED);
+		DrawLineV(points[0], points[1], color);
+		DrawLineV(points[1], points[2], color);
+		DrawLineV(points[2], points[3], color);
+		DrawLineV(points[3], points[0], color);
 		
-		DrawLineV(points[4], points[5], RED);
-		DrawLineV(points[5], points[6], RED);
-		DrawLineV(points[6], points[7], RED);
-		DrawLineV(points[7], points[4], RED);
+		DrawLineV(points[0], points[4], color);
+		DrawLineV(points[1], points[5], color);
+		DrawLineV(points[2], points[6], color);
+		DrawLineV(points[3], points[7], color);
 		
+		DrawLineV(points[4], points[5], color);
+		DrawLineV(points[5], points[6], color);
+		DrawLineV(points[6], points[7], color);
+		DrawLineV(points[7], points[4], color);
+		
+	}
+
+	void set_fall_speed(float fall_speed){
+		Player.fall_speed = fall_speed;
 	}
 	
 	Vector2 input(){
@@ -278,7 +294,7 @@ impl Player {
 	}
 	
 	void update(){
-		float gravity = 15.f;
+		float gravity = 20.f;
 		float dt = GetFrameTime();
 		Vector2 input = Player.input();
 		if(Player.jumping == true){
@@ -329,21 +345,36 @@ typedef struct {
 	Player player;
 	Map map;
 	int score;
+	int highscore;
 	bool gameover;
+	float speed_scale;
 } Game;
 
 impl Game{
 	void init(){
 		Game.gameover = false;
 		Game.score = 0;
+		Game.highscore = 0;
+		Game.speed_scale = 1.f;
 		Game.map.init();
 		Game.player.init();
+	}
+
+	void restart(){
+		Game.gameover = false;
+		Game.score = 0;
+		Game.map.init();
+		Game.player.init();
+		Game.map.set_speed(3.f * Game.speed_scale);
+		Game.player.set_fall_speed(1.f * Game.speed_scale);
 	}
 	
 	void draw(){
 		Game.map.draw();
 		Game.player.draw();
-		DrawText(TextFormat("Score: %d", Game.score), 10, 10, 20, RED);
+		DrawText(TextFormat("High Score: %d", Game.highscore), 10, 10, 20, RED);
+		DrawText(TextFormat("Score: %d", Game.score), 10, 30, 20, RED);
+		DrawText(TextFormat("Speed Scale: %.1f", Game.speed_scale), 10, 50, 20, RED);
 		if(Game.gameover == true){
 			DrawText("huj ci w dupe [R]", SCREEN_WIDTH/2, SCREEN_HEIGHT/2, 20, RED);
 		}
@@ -351,12 +382,25 @@ impl Game{
 	
 	void update(){
 		if(IsKeyPressed(KEY_R)){
-			Game.init();
+			Game.restart();
+		}
+		if(IsKeyPressed(KEY_UP)){
+			Game.speed_scale += 0.1f;
+			Game.map.set_speed(3.f * Game.speed_scale);
+			Game.player.set_fall_speed(1.f * Game.speed_scale);
+		}
+		if(IsKeyPressed(KEY_DOWN)){
+			Game.speed_scale -= 0.1f;
+			Game.map.set_speed(3.f * Game.speed_scale);
+			Game.player.set_fall_speed(1.f * Game.speed_scale);
 		}
 		
 		Game.gameover = Game.player.gameover;
 		if(Game.gameover == false){
 			Game.score += 10;
+			if(Game.score > Game.highscore){
+				Game.highscore = Game.score;
+			}
 		}
 		Game.map.move();
 		Game.player.collision(Game.map.get_platforms());
