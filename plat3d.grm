@@ -158,6 +158,7 @@ typedef struct {
 	bool jumping;
 	bool gameover;
 	bool collides;
+	bool diving;
 } Player;
 
 impl Player {
@@ -171,7 +172,7 @@ impl Player {
 		Player.jumping = false;
 		Player.gameover = false;
 		Player.collides = true;
-		
+		Player.diving = false;
 	}
 	
 	void draw(){
@@ -192,10 +193,10 @@ impl Player {
 		vertices[6] = (Vector3){ cube_half_size, cube_half_size,  cube_half_size};
 		vertices[7] = (Vector3){-cube_half_size, cube_half_size,  cube_half_size};
 		
-		
-		
 		for(int i = 0; i < count; i++){
-			if(Player.jumping || Player.gameover){
+			if(Player.diving){
+				Player.rotation_x += 4.f;
+			}else if(Player.jumping){
 				Player.rotation_x += 2.f;
 			}else{
 				Player.rotation_x = 0.f;
@@ -252,6 +253,9 @@ impl Player {
 		if (IsKeyPressed(KEY_SPACE)){
 			input.y += 1.f;
 		}
+		if (IsKeyPressed(KEY_LEFT_SHIFT)){
+			input.y -= 1.f;
+		}
 		if (IsKeyDown(KEY_G)){
 			Player.gameover = true;
 		}
@@ -281,7 +285,7 @@ impl Player {
 			
 			// Y Check: Checking if player is at the platform level
 			float plat_y = platforms[i].pos.y;
-			bool overlapY = (Player.pos.y >= plat_y - 0.1f) && (Player.pos.y <= plat_y + 0.1f);
+			bool overlapY = (Player.pos.y >= plat_y - 0.4f) && (Player.pos.y <= plat_y + 0.1f);
 
 			bool overlapX = (p_maxX > plat_minX) && (p_minX < plat_maxX);
 			bool overlapZ = (p_maxZ > plat_minZ) && (p_minZ < plat_maxZ);
@@ -297,48 +301,70 @@ impl Player {
 		float gravity = 20.f;
 		float dt = GetFrameTime();
 		Vector2 input = Player.input();
+
+		// Trigger dive on single press, only while airborne
+		if (IsKeyPressed(KEY_LEFT_SHIFT) && Player.jumping == true) {
+			Player.diving = true;
+		}
+
+		// Cancel dive the moment we land
+		if (Player.collides == true && Player.pos.y <= -1.f) {
+			Player.diving = false;
+		}
+
+		// INPUT FILTERING
 		if(Player.jumping == true){
-			input.y = 0.f;
-		}
-		
-		if (Player.pos.y <= -2.0f && Player.collides == false) {
-			Player.gameover = true;
+			if (input.y > 0.f) {
+				input.y = 0.f;
+			}
+		} else {
+			if (input.y < 0.f) {
+				input.y = 0.f;
+			}
 		}
 
-		if(Player.gameover == false){
-			if (Player.collides == true) {
-				Player.vel.y += input.y * 5.f;
-			}
-			Player.vel.x = input.x * Player.speed;
-			
-			if (Player.collides == true) {
-				if(Player.pos.y > -1.f){
-					Player.jumping = true;
-					Player.vel.y -= gravity * dt;
-				}
-				if(Player.pos.y < -1.f){
-					Player.jumping = false;
-					Player.vel.y = 0.f;
-					Player.pos.y = -1.f;
-				}
-			}else{
-				Player.vel.y -= gravity * dt;
-				Player.jumping = true;
-			}
-		}else{
-			Player.vel.y -= gravity * dt;
+		float effectiveGravity = gravity;
+		if (Player.jumping == true && Player.diving == true) {
+			effectiveGravity = gravity * 3.f;
 		}
-		
-		Player.pos.x += Player.vel.x * dt;
-		Player.pos.y += Player.vel.y * dt;
 
-		if(Player.pos.x < -1.f){
-			Player.pos.x = -1.f;
-		}else if (Player.pos.x > 1.f){
-			Player.pos.x = 1.f;
-		}
-		
-	}
+        if (Player.pos.y <= -2.0f && Player.collides == false) {
+            Player.gameover = true;
+        }
+
+        if(Player.gameover == false){
+            if (Player.collides == true) {
+                Player.vel.y += input.y * 5.f;
+            }
+            Player.vel.x = input.x * Player.speed;
+            
+            if (Player.collides == true) {
+                if(Player.pos.y > -1.f){
+                    Player.jumping = true;
+                    Player.vel.y -= effectiveGravity * dt; 
+                }
+                if(Player.pos.y < -1.f){
+                    Player.jumping = false;
+                    Player.vel.y = 0.f;
+                    Player.pos.y = -1.f;
+                }
+            }else{
+                Player.vel.y -= effectiveGravity * dt; 
+                Player.jumping = true;
+            }
+        }else{
+            Player.vel.y -= effectiveGravity * dt;
+        }
+
+        Player.pos.x += Player.vel.x * dt;
+        Player.pos.y += Player.vel.y * dt;
+
+        if(Player.pos.x < -1.f){
+            Player.pos.x = -1.f;
+        }else if (Player.pos.x > 1.f){
+            Player.pos.x = 1.f;
+        }
+    }
 }
 
 typedef struct {
