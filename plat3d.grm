@@ -402,7 +402,7 @@ impl Game{
 		DrawText(TextFormat("Score: %d", Game.score), 10, 30, 20, RED);
 		DrawText(TextFormat("Speed Scale: %.1f", Game.speed_scale), 10, 50, 20, RED);
 		if(Game.gameover == true){
-			DrawText("huj ci w dupe [R]", SCREEN_WIDTH/2, SCREEN_HEIGHT/2, 20, RED);
+			DrawText("huj ci w dupe [R]", SCREEN_WIDTH/2-82, SCREEN_HEIGHT/4, 20, RED);
 		}
 	}
 	
